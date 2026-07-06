@@ -1,11 +1,16 @@
 package net.anthr.butler.core.security;
 
 import jakarta.persistence.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
 import java.util.UUID;
 
 @Entity
 @Table(name = "users")
 public class User {
+
+    @Transient
+    private static final BCryptPasswordEncoder ENCODER = new BCryptPasswordEncoder();
 
     @Id
     @GeneratedValue(strategy = GenerationType.AUTO)
@@ -20,13 +25,22 @@ public class User {
     @Column(unique = true)
     private Long telegramId;
 
-    public User(String username, String password) {}
+    protected User() {} // required by JPA
+
+    public User(String username, String rawPassword) {
+        this.username = username;
+        this.passwordHash = ENCODER.encode(rawPassword);
+    }
 
     public UUID id() { return id; }
 
     public String username() { return username; }
 
     public String passwordHash() { return passwordHash; }
+
+    public boolean checkPassword(String rawPassword) {
+        return ENCODER.matches(rawPassword, passwordHash);
+    }
 
     public Long telegramId() { return telegramId; }
 
