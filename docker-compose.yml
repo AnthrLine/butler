@@ -1,0 +1,37 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: butler-postgres
+    environment:
+      POSTGRES_DB: butler
+      POSTGRES_USER: butler
+      POSTGRES_PASSWORD: butler
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U butler -d butler"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: butler-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: butler
+      DB_USER: butler
+      DB_PASSWORD: butler
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:

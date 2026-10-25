@@ -11,6 +11,8 @@ import java.util.Optional;
 @Component
 public class VerificationFilter implements Filter {
 
+    private static final String API_KEY_PREFIX = "ak_";
+
     private final UserRepository userRepository;
 
     public VerificationFilter(UserRepository usuariRepository) {
@@ -26,23 +28,16 @@ public class VerificationFilter implements Filter {
 
         String path = httpRequest.getRequestURI();
 
-        // 1. TELEGRAM CHECK
-        String telegramIdHeader = httpRequest.getHeader("X-Telegram-Id");
-        if (telegramIdHeader != null) {
-            try {
-                Long telegramId = Long.parseLong(telegramIdHeader);
-                Optional<User> usuariTelegram = userRepository.findByTelegramId(telegramId);
-
-                if (usuariTelegram.isPresent()) {
-                    // Usuari de Telegram trobat i vàlid! Deixem passar la sol·licitud.
-                    chain.doFilter(request, response);
-                    return;
-                }
-            } catch (NumberFormatException e) {
-                httpResponse.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-                httpResponse.getWriter().write("Telegram Id is not a number");
+        // 1. API KEY CHECK
+        String apiKeyHeader = httpRequest.getHeader("X-API-Key");
+        if (apiKeyHeader != null) {
+            if (isValidApiKey(apiKeyHeader)) {
+                chain.doFilter(request, response);
                 return;
             }
+            httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            httpResponse.getWriter().write("Invalid API key");
+            return;
         }
 
         // 2. STANDARD CHECK
@@ -70,5 +65,24 @@ public class VerificationFilter implements Filter {
         // Non verified requests
         httpResponse.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
         httpResponse.getWriter().write("Non authorised");
+    }
+
+    /**
+     * Parses a raw API key of the form {@code ak_<keyId>.<secret>}, looks up
+     * the user by {@code keyId}, and BCrypt-verifies the secret.
+     */
+    private boolean isValidApiKey(String rawKey) {
+        if (!rawKey.startsWith(API_KEY_PREFIX)) return false;
+
+        String body = rawKey.substring(API_KEY_PREFIX.length());
+        int dot = body.indexOf('.');
+        if (dot <= 0 || dot == body.length() - 1) return false;
+
+        String keyId = body.substring(0, dot);
+        String secret = body.substring(dot + 1);
+
+        return userRepository.findByApiKeyId(keyId)
+                .map(user -> user.checkApiKeySecret(secret))
+                .orElse(false);
     }
 }
