@@ -26,7 +26,13 @@ public class VerificationFilter implements Filter {
         HttpServletRequest httpRequest = (HttpServletRequest) request;
         HttpServletResponse httpResponse = (HttpServletResponse) response;
 
+        // IGNORE PUBLIC PATHS
         String path = httpRequest.getRequestURI();
+
+        if (path.startsWith("/api/security/user/register")) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         // 1. API KEY CHECK
         String apiKeyHeader = httpRequest.getHeader("X-API-Key");
